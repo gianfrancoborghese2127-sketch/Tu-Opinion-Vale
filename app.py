@@ -1,168 +1,105 @@
-from flask import Flask, request, redirect, session
+from flask import Flask, request, render_template_string, redirect
 import psycopg2
 import os
 
 app = Flask(__name__)
-app.secret_key = "clave_secreta"
 
-ADMIN_USER = "admin"
-ADMIN_PASS = "presidente2026GFB"
+DATABASE_URL = os.getenv("DATABASE_URL")
+ADMIN_PASSWORD = "Presidente2026GFB"
 
-# Obtener URL de la base de datos
-DATABASE_URL = os.environ.get("DATABASE_URL")
-
+# Conexión a la base de datos
 def get_conn():
-    if not DATABASE_URL:
-        raise Exception("DATABASE_URL no está configurada")
     return psycopg2.connect(DATABASE_URL)
-
 
 # Crear tabla si no existe
 def crear_tabla():
     try:
         conn = get_conn()
-        c = conn.cursor()
-        c.execute("""
+        cur = conn.cursor()
+        cur.execute("""
             CREATE TABLE IF NOT EXISTS opiniones (
                 id SERIAL PRIMARY KEY,
-                texto TEXT
+                texto TEXT NOT NULL
             )
         """)
         conn.commit()
+        cur.close()
         conn.close()
+        print("Tabla lista")
     except Exception as e:
         print("Error creando tabla:", e)
 
 crear_tabla()
 
-
-# HOME
+# Página principal
 @app.route("/", methods=["GET", "POST"])
 def home():
     if request.method == "POST":
         texto = request.form.get("opinion")
-
         if texto:
             conn = get_conn()
-            c = conn.cursor()
-            c.execute("INSERT INTO opiniones (texto) VALUES (%s)", (texto,))
+            cur = conn.cursor()
+            cur.execute("INSERT INTO opiniones (texto) VALUES (%s)", (texto,))
             conn.commit()
+            cur.close()
             conn.close()
 
-            return "<h3>Gracias por tu opinión ❤️</h3><a href='/'>Volver</a>"
-
-    return '''
-    <style>
-    body {
-        font-family: Arial;
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        height: 100vh;
-        background: #f5f5f5;
-        margin: 0;
-    }
-    .box {
-        background: white;
-        padding: 30px;
-        border-radius: 10px;
-        box-shadow: 0 0 10px rgba(0,0,0,0.1);
-        width: 90%;
-        max-width: 400px;
-        text-align: center;
-    }
-    textarea {
-        width: 100%;
-        padding: 10px;
-        margin-top: 10px;
-    }
-    button {
-        margin-top: 15px;
-        padding: 10px 20px;
-        background: black;
-        color: white;
-        border: none;
-        border-radius: 5px;
-    }
-    </style>
-
-    <div class="box">
-        <h2>Tu Opinión Es Valorada</h2>
+    return render_template_string("""
+        <h1>Dejá tu opinión</h1>
         <form method="post">
-            <textarea name="opinion" rows="5" placeholder="Escribí tu opinión..." required></textarea><br>
+            <input name="opinion" placeholder="Escribí algo..." required>
             <button>Enviar</button>
         </form>
-    </div>
-    '''
+        <br>
+        <a href="/admin">Ir al panel admin</a>
+    """)
 
-
-# LOGIN ADMIN
+# ADMIN LOGIN + PANEL
 @app.route("/admin", methods=["GET", "POST"])
 def admin():
     if request.method == "POST":
-        user = request.form.get("user")
-        pw = request.form.get("pw")
+        password = request.form.get("password")
 
-        if user == ADMIN_USER and pw == ADMIN_PASS:
-            session["admin"] = True
-            return redirect("/panel")
+        if password == ADMIN_PASSWORD:
+            conn = get_conn()
+            cur = conn.cursor()
+            cur.execute("SELECT * FROM opiniones ORDER BY id DESC")
+            datos = cur.fetchall()
+            cur.close()
+            conn.close()
 
-    return '''
-    <div style="text-align:center; margin-top:100px;">
-        <h2>Login Admin</h2>
+            return render_template_string("""
+                <h1>Panel Admin</h1>
+
+                {% for op in datos %}
+                    <p>
+                        {{ op[1] }}
+                        <a href="/borrar/{{ op[0] }}">❌ Borrar</a>
+                    </p>
+                {% endfor %}
+
+                <br>
+                <a href="/">Volver</a>
+            """, datos=datos)
+
+    return render_template_string("""
+        <h1>Login Admin</h1>
         <form method="post">
-            <input name="user" placeholder="Usuario"><br><br>
-            <input name="pw" type="password" placeholder="Contraseña"><br><br>
+            <input type="password" name="password" placeholder="Contraseña">
             <button>Entrar</button>
         </form>
-    </div>
-    '''
+    """)
 
-
-# PANEL ADMIN
-@app.route("/panel")
-def panel():
-    if not session.get("admin"):
-        return redirect("/admin")
-
-    conn = get_conn()
-    c = conn.cursor()
-    c.execute("SELECT id, texto FROM opiniones ORDER BY id DESC")
-    datos = c.fetchall()
-    conn.close()
-
-    html = "<h1 style='text-align:center;'>Panel de Opiniones</h1>"
-
-    for d in datos:
-        html += f"""
-        <div style="max-width:600px;margin:20px auto;padding:10px;border:1px solid #ccc;border-radius:8px;">
-            <p>{d[1]}</p>
-            <form method="post" action="/borrar/{d[0]}">
-                <button style="background:red;color:white;border:none;padding:5px 10px;border-radius:5px;">
-                    🗑️ Borrar
-                </button>
-            </form>
-        </div>
-        """
-
-    return html
-
-
-# BORRAR
-@app.route("/borrar/<int:id>", methods=["POST"])
+# BORRAR OPINIÓN
+@app.route("/borrar/<int:id>")
 def borrar(id):
-    if not session.get("admin"):
-        return redirect("/admin")
-
     conn = get_conn()
-    c = conn.cursor()
-    c.execute("DELETE FROM opiniones WHERE id = %s", (id,))
+    cur = conn.cursor()
+    cur.execute("DELETE FROM opiniones WHERE id = %s", (id,))
     conn.commit()
+    cur.close()
     conn.close()
+    return redirect("/admin")
 
-    return redirect("/panel")
-
-
-# RUN
 if __name__ == "__main__":
     app.run()
