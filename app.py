@@ -4,7 +4,6 @@ import sqlite3
 app = Flask(__name__)
 app.secret_key = "clave_secreta"
 
-CODIGO_ACCESO = "opina123"
 ADMIN_USER = "admin"
 ADMIN_PASS = "presidente2026GFB"
 
@@ -15,31 +14,79 @@ c.execute("CREATE TABLE IF NOT EXISTS opiniones (texto TEXT)")
 conn.commit()
 conn.close()
 
-# HOME (usuarios)
+# HOME
 @app.route("/", methods=["GET", "POST"])
 def home():
     if request.method == "POST":
-        codigo = request.form["codigo"]
         texto = request.form["opinion"]
 
-        if codigo == CODIGO_ACCESO:
-            conn = sqlite3.connect("db.db")
-            c = conn.cursor()
-            c.execute("INSERT INTO opiniones VALUES (?)", (texto,))
-            conn.commit()
-            conn.close()
-            return "<h3>Gracias por tu opinión, muy pronto será charlada</h3>"
-        else:
-            return "<h3>Código incorrecto</h3>"
+        conn = sqlite3.connect("db.db")
+        c = conn.cursor()
+        c.execute("INSERT INTO opiniones VALUES (?)", (texto,))
+        conn.commit()
+        conn.close()
+
+        return "<h3 style='text-align:center'>Gracias por tu opinión 🙌</h3>"
 
     return '''
-    <h1>Tu Opinión Es Valorada</h1>
-    <h3>Dejá tu opinión anónima</h3>
-    <form method="post">
-        Código: <input name="codigo"><br><br>
-        <textarea name="opinion" rows="5" cols="40"></textarea><br><br>
-        <button>Enviar</button>
-    </form>
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Tu Opinión</title>
+        <style>
+            body {
+                font-family: Arial;
+                background: #f4f4f4;
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                height: 100vh;
+                margin: 0;
+            }
+            .box {
+                background: white;
+                padding: 25px;
+                border-radius: 10px;
+                width: 90%;
+                max-width: 400px;
+                box-shadow: 0 0 10px rgba(0,0,0,0.1);
+                text-align: center;
+            }
+            textarea {
+                width: 100%;
+                padding: 10px;
+                border-radius: 5px;
+            }
+            button {
+                background: black;
+                color: white;
+                padding: 10px;
+                border: none;
+                width: 100%;
+                margin-top: 10px;
+                border-radius: 5px;
+                cursor: pointer;
+            }
+            button:hover {
+                background: #333;
+            }
+        </style>
+    </head>
+    <body>
+
+    <div class="box">
+        <h2>Tu Opinión Es Valorada</h2>
+        <p>Dejá tu opinión anónima</p>
+
+        <form method="post">
+            <textarea name="opinion" rows="5" placeholder="Escribí acá..."></textarea><br><br>
+            <button>Enviar</button>
+        </form>
+    </div>
+
+    </body>
+    </html>
     '''
 
 # LOGIN ADMIN
@@ -52,17 +99,60 @@ def admin():
         if user == ADMIN_USER and pw == ADMIN_PASS:
             session["admin"] = True
             return redirect("/panel")
-        else:
-            return "<h3>Credenciales incorrectas</h3>"
 
     return '''
-    <h1>Tu Opinión Es Valorada</h1>
-    <h2>Login Admin</h2>
-    <form method="post">
-        Usuario: <input name="user"><br>
-        Contraseña: <input name="pw" type="password"><br><br>
-        <button>Entrar</button>
-    </form>
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <style>
+            body {
+                font-family: Arial;
+                background: #f4f4f4;
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                height: 100vh;
+                margin: 0;
+            }
+            .box {
+                background: white;
+                padding: 25px;
+                border-radius: 10px;
+                width: 90%;
+                max-width: 400px;
+                box-shadow: 0 0 10px rgba(0,0,0,0.1);
+                text-align: center;
+            }
+            input {
+                width: 100%;
+                padding: 10px;
+                margin-top: 10px;
+            }
+            button {
+                margin-top: 15px;
+                padding: 10px;
+                width: 100%;
+                background: black;
+                color: white;
+                border: none;
+                border-radius: 5px;
+            }
+        </style>
+    </head>
+    <body>
+
+    <div class="box">
+        <h2>Login Admin</h2>
+        <form method="post">
+            <input name="user" placeholder="Usuario"><br>
+            <input name="pw" type="password" placeholder="Contraseña"><br>
+            <button>Entrar</button>
+        </form>
+    </div>
+
+    </body>
+    </html>
     '''
 
 # PANEL ADMIN
@@ -77,21 +167,52 @@ def panel():
     datos = c.fetchall()
     conn.close()
 
-    html = "<h1>Panel - Tu Opinión Es Valorada</h1>"
+    html = '''
+    <html>
+    <head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body {
+            font-family: Arial;
+            background: #f4f4f4;
+            padding: 20px;
+        }
+        .card {
+            background: white;
+            padding: 15px;
+            margin-bottom: 15px;
+            border-radius: 10px;
+            box-shadow: 0 0 5px rgba(0,0,0,0.1);
+        }
+        button {
+            background: red;
+            color: white;
+            border: none;
+            padding: 8px;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+    </style>
+    </head>
+    <body>
+
+    <h2>Panel de Opiniones</h2>
+    '''
 
     for d in datos:
         html += f"""
-        <p>{d[1]}</p>
-        <form method="post" action="/borrar/{d[0]}" 
-              onsubmit="return confirm('¿Seguro que querés borrar esta opinión?');">
-            <button type="submit">🗑️ Borrar</button>
-        </form>
-        <hr>
+        <div class="card">
+            <p>{d[1]}</p>
+            <form method="post" action="/borrar/{d[0]}">
+                <button>🗑️ Borrar</button>
+            </form>
+        </div>
         """
 
+    html += "</body></html>"
     return html
 
-# BORRAR OPINIÓN
+# BORRAR
 @app.route("/borrar/<int:id>", methods=["POST"])
 def borrar(id):
     if not session.get("admin"):
@@ -104,7 +225,6 @@ def borrar(id):
     conn.close()
 
     return redirect("/panel")
-
 
 if __name__ == "__main__":
     app.run()
