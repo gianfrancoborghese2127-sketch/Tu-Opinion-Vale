@@ -1,77 +1,62 @@
 import os
-from flask import Flask, request, jsonify, render_template_string
+from flask import Flask, request, jsonify
 from flask_sqlalchemy import SQLAlchemy
 
 app = Flask(__name__)
 
-# 🔥 IMPORTANTE: usar la variable de entorno de Render
-database_url = os.getenv("DATABASE_URL")
+# 🔑 Configuración DB (Render)
+DATABASE_URL = os.getenv("DATABASE_URL")
 
-# Fix típico de Render (postgres:// -> postgresql://)
-if database_url and database_url.startswith("postgres://"):
-    database_url = database_url.replace("postgres://", "postgresql://", 1)
+# Fix para postgres en Render
+if DATABASE_URL and DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
-app.config["SQLALCHEMY_DATABASE_URI"] = database_url
+app.config["SQLALCHEMY_DATABASE_URI"] = DATABASE_URL
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
 db = SQLAlchemy(app)
 
-# ----------------------
-# MODELO
-# ----------------------
+# 📌 Modelo (IMPORTANTE: usa "opinion", NO comentario)
 class Opinion(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     nombre = db.Column(db.String(100))
-    comentario = db.Column(db.Text)
+    opinion = db.Column(db.Text)
 
-# Crear tablas automáticamente
-with app.app_context():
-    db.create_all()
-
-# ----------------------
-# RUTAS
-# ----------------------
-
-# Página principal
+# 🏠 Ruta base
 @app.route("/")
 def home():
+    return "API funcionando 🚀"
+
+# 📥 Obtener opiniones
+@app.route("/opiniones", methods=["GET"])
+def obtener_opiniones():
     opiniones = Opinion.query.all()
 
-    html = """
-    <h1>Deja tu opinión</h1>
-    <form method="POST" action="/opinar">
-        <input name="nombre" placeholder="Tu nombre" required><br><br>
-        <textarea name="comentario" placeholder="Tu opinión" required></textarea><br><br>
-        <button type="submit">Enviar</button>
-    </form>
+    resultado = []
+    for o in opiniones:
+        resultado.append({
+            "id": o.id,
+            "nombre": o.nombre,
+            "opinion": o.opinion
+        })
 
-    <h2>Opiniones:</h2>
-    {% for op in opiniones %}
-        <p><b>{{op.nombre}}</b>: {{op.comentario}}</p>
-    {% endfor %}
-    """
+    return jsonify(resultado)
 
-    return render_template_string(html, opiniones=opiniones)
+# 📤 Guardar opinión
+@app.route("/opiniones", methods=["POST"])
+def guardar_opinion():
+    data = request.get_json()
 
-# Guardar opinión
-@app.route("/opinar", methods=["POST"])
-def opinar():
-    try:
-        nombre = request.form.get("nombre")
-        comentario = request.form.get("comentario")
+    nueva = Opinion(
+        nombre=data.get("nombre"),
+        opinion=data.get("opinion")  # 👈 AQUÍ TAMBIÉN
+    )
 
-        nueva = Opinion(nombre=nombre, comentario=comentario)
-        db.session.add(nueva)
-        db.session.commit()
+    db.session.add(nueva)
+    db.session.commit()
 
-        return "Opinión guardada 👍 <br><a href='/'>Volver</a>"
+    return jsonify({"mensaje": "Opinión guardada correctamente"}), 201
 
-    except Exception as e:
-        return f"Error: {str(e)}", 500
-
-
-# ----------------------
-# RUN
-# ----------------------
+# 🚀 Arranque
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=10000)
