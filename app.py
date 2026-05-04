@@ -105,3 +105,32 @@ def borrar(id):
 
 if __name__ == "__main__":
     app.run()
+@app.route("/admin", methods=["GET", "POST"])
+def admin():
+    if request.method == "POST":
+        user = request.form["user"]
+        password = request.form["password"]
+
+        if user == ADMIN_USER and password == ADMIN_PASS:
+            conn = sqlite3.connect("db.db")
+            c = conn.cursor()
+            c.execute("SELECT texto FROM opiniones")
+            opiniones = c.fetchall()
+            conn.close()
+
+            lista = "<h2>Opiniones:</h2>"
+            for op in opiniones:
+                lista += f"<p>{op[0]}</p>"
+
+            return lista
+        else:
+            return "<h3>Credenciales incorrectas</h3>"
+
+    return '''
+        <h2>Login Admin</h2>
+        <form method="post">
+            Usuario: <input name="user"><br><br>
+            Contraseña: <input name="password" type="password"><br><br>
+            <button>Entrar</button>
+        </form>
+    '''
