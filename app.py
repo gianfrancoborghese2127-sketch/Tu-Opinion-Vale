@@ -4,19 +4,23 @@ import os
 
 app = Flask(__name__)
 
-DATABASE_URL = os.getenv("DATABASE_URL")
-ADMIN_PASSWORD = "Presidente2026GFB"
+DATABASE_URL = os.environ.get("DATABASE_URL")
 
+
+# ------------------ CONEXIÓN ------------------
 def get_conn():
     return psycopg2.connect(DATABASE_URL)
 
+
+# ------------------ CREAR TABLA ------------------
 def crear_tabla():
     conn = get_conn()
     cur = conn.cursor()
     cur.execute("""
         CREATE TABLE IF NOT EXISTS opiniones (
             id SERIAL PRIMARY KEY,
-            texto TEXT NOT NULL
+            nombre TEXT,
+            opinion TEXT
         )
     """)
     conn.commit()
@@ -25,82 +29,86 @@ def crear_tabla():
 
 crear_tabla()
 
-# 🌐 PAGINA PRINCIPAL (BONITA Y CENTRADA)
+
+# ------------------ PAGINA USUARIOS ------------------
 @app.route("/", methods=["GET", "POST"])
 def home():
     if request.method == "POST":
-        texto = request.form.get("opinion")
-        if texto:
-            conn = get_conn()
-            cur = conn.cursor()
-            cur.execute("INSERT INTO opiniones (texto) VALUES (%s)", (texto,))
-            conn.commit()
-            cur.close()
-            conn.close()
+        nombre = request.form["nombre"]
+        opinion = request.form["opinion"]
+
+        conn = get_conn()
+        cur = conn.cursor()
+        cur.execute(
+            "INSERT INTO opiniones (nombre, opinion) VALUES (%s, %s)",
+            (nombre, opinion)
+        )
+        conn.commit()
+        cur.close()
+        conn.close()
+
+        return redirect("/")
 
     return render_template_string("""
     <html>
     <head>
+        <title>Opiniones</title>
         <style>
             body {
-                background: #f2f2f2;
+                background: #0f172a;
+                color: white;
                 font-family: Arial;
                 display: flex;
                 justify-content: center;
                 align-items: center;
                 height: 100vh;
-                margin: 0;
             }
             .box {
-                background: white;
+                background: #1e293b;
                 padding: 30px;
                 border-radius: 15px;
-                box-shadow: 0 0 20px rgba(0,0,0,0.1);
                 text-align: center;
-                width: 90%;
-                max-width: 400px;
+                width: 300px;
             }
-            input {
+            input, textarea {
                 width: 100%;
+                margin: 10px 0;
                 padding: 10px;
-                margin-top: 10px;
+                border-radius: 10px;
+                border: none;
             }
             button {
-                margin-top: 10px;
                 padding: 10px;
-                width: 100%;
-                background: black;
-                color: white;
                 border: none;
-                border-radius: 8px;
-            }
-            .admin-link {
-                margin-top: 15px;
-                display: block;
-                font-size: 12px;
-                color: gray;
+                border-radius: 10px;
+                background: #38bdf8;
+                color: black;
+                font-weight: bold;
+                cursor: pointer;
             }
         </style>
     </head>
     <body>
         <div class="box">
             <h2>Dejá tu opinión</h2>
-            <form method="post">
-                <input name="opinion" placeholder="Escribí algo..." required>
+            <form method="POST">
+                <input name="nombre" placeholder="Tu nombre" required>
+                <textarea name="opinion" placeholder="Tu opinión" required></textarea>
                 <button>Enviar</button>
             </form>
-            <a class="admin-link" href="/admin">Admin</a>
         </div>
     </body>
     </html>
     """)
 
-# 🔐 LOGIN ADMIN
+
+# ------------------ LOGIN ADMIN ------------------
 @app.route("/admin", methods=["GET", "POST"])
-def admin():
+def admin_login():
     if request.method == "POST":
-        password = request.form.get("password")
-        if password == ADMIN_PASSWORD:
+        password = request.form["password"]
+
+        if password == "Presidente2026GFB":
             return redirect("/panel")
 
     return render_template_string("""
@@ -108,7 +116,7 @@ def admin():
     <head>
         <style>
             body {
-                background: #111;
+                background: black;
                 color: white;
                 display: flex;
                 justify-content: center;
@@ -117,19 +125,30 @@ def admin():
                 font-family: Arial;
             }
             .box {
+                background: #111;
+                padding: 30px;
+                border-radius: 15px;
                 text-align: center;
             }
-            input, button {
+            input {
                 padding: 10px;
-                margin-top: 10px;
-                width: 200px;
+                margin: 10px;
+                border-radius: 10px;
+                border: none;
+            }
+            button {
+                padding: 10px;
+                border-radius: 10px;
+                border: none;
+                background: red;
+                color: white;
             }
         </style>
     </head>
     <body>
         <div class="box">
-            <h2>Admin Login</h2>
-            <form method="post">
+            <h2>Admin</h2>
+            <form method="POST">
                 <input type="password" name="password" placeholder="Contraseña">
                 <br>
                 <button>Entrar</button>
@@ -139,61 +158,30 @@ def admin():
     </html>
     """)
 
-# 🧠 PANEL ADMIN REAL
+
+# ------------------ PANEL ADMIN ------------------
 @app.route("/panel")
 def panel():
     conn = get_conn()
     cur = conn.cursor()
-    cur.execute("SELECT * FROM opiniones ORDER BY id DESC")
+    cur.execute("SELECT nombre, opinion FROM opiniones")
     datos = cur.fetchall()
     cur.close()
     conn.close()
 
-    return render_template_string("""
-    <html>
-    <head>
-        <style>
-            body {
-                font-family: Arial;
-                background: #222;
-                color: white;
-                padding: 20px;
-            }
-            .card {
-                background: #333;
-                padding: 10px;
-                margin: 10px 0;
-                border-radius: 10px;
-            }
-            a {
-                color: red;
-                float: right;
-            }
-        </style>
-    </head>
-    <body>
-        <h2>Panel Admin</h2>
+    contenido = ""
+    for n, o in datos:
+        contenido += f"<p><b>{n}</b>: {o}</p>"
 
-        {% for op in datos %}
-            <div class="card">
-                {{ op[1] }}
-                <a href="/borrar/{{ op[0] }}">❌</a>
-            </div>
-        {% endfor %}
+    return f"""
+    <html>
+    <body style="background:black; color:white; font-family:Arial; text-align:center;">
+        <h1>Panel Admin</h1>
+        {contenido}
     </body>
     </html>
-    """, datos=datos)
+    """
 
-# ❌ BORRAR
-@app.route("/borrar/<int:id>")
-def borrar(id):
-    conn = get_conn()
-    cur = conn.cursor()
-    cur.execute("DELETE FROM opiniones WHERE id = %s", (id,))
-    conn.commit()
-    cur.close()
-    conn.close()
-    return redirect("/panel")
 
 if __name__ == "__main__":
     app.run()
