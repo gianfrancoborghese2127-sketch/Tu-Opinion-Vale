@@ -8,25 +8,30 @@ app.secret_key = "clave_secreta"
 ADMIN_USER = "admin"
 ADMIN_PASS = "presidente2026GFB"
 
-# Conexión a PostgreSQL (Render)
+# Obtener URL de la base de datos
 DATABASE_URL = os.environ.get("DATABASE_URL")
 
 def get_conn():
+    if not DATABASE_URL:
+        raise Exception("DATABASE_URL no está configurada")
     return psycopg2.connect(DATABASE_URL)
 
 
 # Crear tabla si no existe
 def crear_tabla():
-    conn = get_conn()
-    c = conn.cursor()
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS opiniones (
-            id SERIAL PRIMARY KEY,
-            texto TEXT
-        )
-    """)
-    conn.commit()
-    conn.close()
+    try:
+        conn = get_conn()
+        c = conn.cursor()
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS opiniones (
+                id SERIAL PRIMARY KEY,
+                texto TEXT
+            )
+        """)
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        print("Error creando tabla:", e)
 
 crear_tabla()
 
@@ -35,15 +40,16 @@ crear_tabla()
 @app.route("/", methods=["GET", "POST"])
 def home():
     if request.method == "POST":
-        texto = request.form["opinion"]
+        texto = request.form.get("opinion")
 
-        conn = get_conn()
-        c = conn.cursor()
-        c.execute("INSERT INTO opiniones (texto) VALUES (%s)", (texto,))
-        conn.commit()
-        conn.close()
+        if texto:
+            conn = get_conn()
+            c = conn.cursor()
+            c.execute("INSERT INTO opiniones (texto) VALUES (%s)", (texto,))
+            conn.commit()
+            conn.close()
 
-        return "<h3>Gracias por tu opinión ❤️</h3><a href='/'>Volver</a>"
+            return "<h3>Gracias por tu opinión ❤️</h3><a href='/'>Volver</a>"
 
     return '''
     <style>
@@ -83,7 +89,7 @@ def home():
     <div class="box">
         <h2>Tu Opinión Es Valorada</h2>
         <form method="post">
-            <textarea name="opinion" rows="5" placeholder="Escribí tu opinión..."></textarea><br>
+            <textarea name="opinion" rows="5" placeholder="Escribí tu opinión..." required></textarea><br>
             <button>Enviar</button>
         </form>
     </div>
@@ -94,8 +100,8 @@ def home():
 @app.route("/admin", methods=["GET", "POST"])
 def admin():
     if request.method == "POST":
-        user = request.form["user"]
-        pw = request.form["pw"]
+        user = request.form.get("user")
+        pw = request.form.get("pw")
 
         if user == ADMIN_USER and pw == ADMIN_PASS:
             session["admin"] = True
@@ -125,14 +131,16 @@ def panel():
     datos = c.fetchall()
     conn.close()
 
-    html = "<h1 style='text-align:center;'>Panel</h1>"
+    html = "<h1 style='text-align:center;'>Panel de Opiniones</h1>"
 
     for d in datos:
         html += f"""
-        <div style="max-width:600px;margin:20px auto;padding:10px;border:1px solid #ccc;">
+        <div style="max-width:600px;margin:20px auto;padding:10px;border:1px solid #ccc;border-radius:8px;">
             <p>{d[1]}</p>
             <form method="post" action="/borrar/{d[0]}">
-                <button>🗑️ Borrar</button>
+                <button style="background:red;color:white;border:none;padding:5px 10px;border-radius:5px;">
+                    🗑️ Borrar
+                </button>
             </form>
         </div>
         """
