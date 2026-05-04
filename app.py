@@ -8,20 +8,30 @@ app.secret_key = "clave_secreta"
 ADMIN_USER = "admin"
 ADMIN_PASS = "presidente2026GFB"
 
-# Conexión a PostgreSQL
+# Conexión a PostgreSQL (Render)
 DATABASE_URL = os.environ.get("DATABASE_URL")
 
 def get_conn():
     return psycopg2.connect(DATABASE_URL)
 
-# Crear tabla si no existe
-conn = get_conn()
-c = conn.cursor()
-c.execute("CREATE TABLE IF NOT EXISTS opiniones (id SERIAL PRIMARY KEY, texto TEXT)")
-conn.commit()
-conn.close()
 
-# HOME (usuarios)
+# Crear tabla si no existe
+def crear_tabla():
+    conn = get_conn()
+    c = conn.cursor()
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS opiniones (
+            id SERIAL PRIMARY KEY,
+            texto TEXT
+        )
+    """)
+    conn.commit()
+    conn.close()
+
+crear_tabla()
+
+
+# HOME
 @app.route("/", methods=["GET", "POST"])
 def home():
     if request.method == "POST":
@@ -33,40 +43,52 @@ def home():
         conn.commit()
         conn.close()
 
-        return "<h3>Gracias por tu opinión 💙</h3>"
+        return "<h3>Gracias por tu opinión ❤️</h3><a href='/'>Volver</a>"
 
     return '''
     <style>
-        body {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            font-family: Arial;
-            background: #f5f5f5;
-        }
-        .box {
-            text-align: center;
-            background: white;
-            padding: 30px;
-            border-radius: 10px;
-            width: 90%;
-            max-width: 400px;
-        }
-        textarea {
-            width: 100%;
-        }
+    body {
+        font-family: Arial;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 100vh;
+        background: #f5f5f5;
+        margin: 0;
+    }
+    .box {
+        background: white;
+        padding: 30px;
+        border-radius: 10px;
+        box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        width: 90%;
+        max-width: 400px;
+        text-align: center;
+    }
+    textarea {
+        width: 100%;
+        padding: 10px;
+        margin-top: 10px;
+    }
+    button {
+        margin-top: 15px;
+        padding: 10px 20px;
+        background: black;
+        color: white;
+        border: none;
+        border-radius: 5px;
+    }
     </style>
 
     <div class="box">
-        <h1>Tu Opinión Es Valorada</h1>
-        <h3>Dejá tu opinión anónima</h3>
+        <h2>Tu Opinión Es Valorada</h2>
         <form method="post">
-            <textarea name="opinion" rows="5"></textarea><br><br>
+            <textarea name="opinion" rows="5" placeholder="Escribí tu opinión..."></textarea><br>
             <button>Enviar</button>
         </form>
     </div>
     '''
+
 
 # LOGIN ADMIN
 @app.route("/admin", methods=["GET", "POST"])
@@ -80,13 +102,16 @@ def admin():
             return redirect("/panel")
 
     return '''
-    <h2>Login Admin</h2>
-    <form method="post">
-        Usuario: <input name="user"><br><br>
-        Contraseña: <input name="pw" type="password"><br><br>
-        <button>Entrar</button>
-    </form>
+    <div style="text-align:center; margin-top:100px;">
+        <h2>Login Admin</h2>
+        <form method="post">
+            <input name="user" placeholder="Usuario"><br><br>
+            <input name="pw" type="password" placeholder="Contraseña"><br><br>
+            <button>Entrar</button>
+        </form>
+    </div>
     '''
+
 
 # PANEL ADMIN
 @app.route("/panel")
@@ -96,22 +121,24 @@ def panel():
 
     conn = get_conn()
     c = conn.cursor()
-    c.execute("SELECT id, texto FROM opiniones")
+    c.execute("SELECT id, texto FROM opiniones ORDER BY id DESC")
     datos = c.fetchall()
     conn.close()
 
-    html = "<h1>Panel</h1>"
+    html = "<h1 style='text-align:center;'>Panel</h1>"
 
     for d in datos:
         html += f"""
-        <p>{d[1]}</p>
-        <form method="post" action="/borrar/{d[0]}">
-            <button>🗑️ Borrar</button>
-        </form>
-        <hr>
+        <div style="max-width:600px;margin:20px auto;padding:10px;border:1px solid #ccc;">
+            <p>{d[1]}</p>
+            <form method="post" action="/borrar/{d[0]}">
+                <button>🗑️ Borrar</button>
+            </form>
+        </div>
         """
 
     return html
+
 
 # BORRAR
 @app.route("/borrar/<int:id>", methods=["POST"])
@@ -127,5 +154,7 @@ def borrar(id):
 
     return redirect("/panel")
 
+
+# RUN
 if __name__ == "__main__":
     app.run()
