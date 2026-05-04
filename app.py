@@ -1,122 +1,77 @@
-from flask import Flask, request, redirect, render_template_string
-from flask_sqlalchemy import SQLAlchemy
 import os
+from flask import Flask, request, jsonify, render_template_string
+from flask_sqlalchemy import SQLAlchemy
 
 app = Flask(__name__)
 
-# Config DB (Render)
-app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get("DATABASE_URL")
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+# 🔥 IMPORTANTE: usar la variable de entorno de Render
+database_url = os.getenv("DATABASE_URL")
+
+# Fix típico de Render (postgres:// -> postgresql://)
+if database_url and database_url.startswith("postgres://"):
+    database_url = database_url.replace("postgres://", "postgresql://", 1)
+
+app.config["SQLALCHEMY_DATABASE_URI"] = database_url
+app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
 db = SQLAlchemy(app)
 
-# Modelo
+# ----------------------
+# MODELO
+# ----------------------
 class Opinion(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     nombre = db.Column(db.String(100))
-    mensaje = db.Column(db.Text)
+    comentario = db.Column(db.Text)
 
 # Crear tablas automáticamente
 with app.app_context():
     db.create_all()
 
-# ----------- HTML BASE -----------
-ESTILO = """
-<style>
-body {
-    font-family: Arial;
-    background: #f4f4f4;
-    text-align: center;
-}
-.container {
-    margin-top: 50px;
-}
-input, textarea {
-    width: 300px;
-    padding: 10px;
-    margin: 5px;
-}
-button {
-    padding: 10px 20px;
-    background: black;
-    color: white;
-    border: none;
-}
-.opinion {
-    background: white;
-    margin: 10px auto;
-    padding: 10px;
-    width: 400px;
-    border-radius: 10px;
-}
-</style>
-"""
+# ----------------------
+# RUTAS
+# ----------------------
 
-# ----------- PÁGINA USUARIO -----------
+# Página principal
 @app.route("/")
-def index():
-    return render_template_string(ESTILO + """
-    <div class="container">
-        <h1>Deja tu opinión</h1>
-        <form action="/enviar" method="POST">
-            <input name="nombre" placeholder="Tu nombre" required><br>
-            <textarea name="mensaje" placeholder="Tu opinión" required></textarea><br>
-            <button type="submit">Enviar</button>
-        </form>
-    </div>
-    """)
-
-# Guardar opinión
-@app.route("/enviar", methods=["POST"])
-def enviar():
-    nombre = request.form["nombre"]
-    mensaje = request.form["mensaje"]
-
-    nueva = Opinion(nombre=nombre, mensaje=mensaje)
-    db.session.add(nueva)
-    db.session.commit()
-
-    return redirect("/")
-
-# ----------- LOGIN ADMIN -----------
-@app.route("/admin", methods=["GET", "POST"])
-def admin_login():
-    if request.method == "POST":
-        password = request.form["password"]
-        if password == "Presidente2026GFB":
-            return redirect("/panel")
-        else:
-            return "Contraseña incorrecta"
-
-    return render_template_string(ESTILO + """
-    <div class="container">
-        <h2>Admin Login</h2>
-        <form method="POST">
-            <input type="password" name="password" placeholder="Contraseña">
-            <br>
-            <button>Entrar</button>
-        </form>
-    </div>
-    """)
-
-# ----------- PANEL ADMIN -----------
-@app.route("/panel")
-def panel():
+def home():
     opiniones = Opinion.query.all()
 
     html = """
-    <div class="container">
-        <h1>Panel Admin</h1>
+    <h1>Deja tu opinión</h1>
+    <form method="POST" action="/opinar">
+        <input name="nombre" placeholder="Tu nombre" required><br><br>
+        <textarea name="comentario" placeholder="Tu opinión" required></textarea><br><br>
+        <button type="submit">Enviar</button>
+    </form>
+
+    <h2>Opiniones:</h2>
+    {% for op in opiniones %}
+        <p><b>{{op.nombre}}</b>: {{op.comentario}}</p>
+    {% endfor %}
     """
 
-    for o in opiniones:
-        html += f"""
-        <div class="opinion">
-            <b>{o.nombre}</b><br>
-            {o.mensaje}
-        </div>
-        """
+    return render_template_string(html, opiniones=opiniones)
 
-    html += "</div>"
+# Guardar opinión
+@app.route("/opinar", methods=["POST"])
+def opinar():
+    try:
+        nombre = request.form.get("nombre")
+        comentario = request.form.get("comentario")
 
-    return render_template_string(ESTILO + html)
+        nueva = Opinion(nombre=nombre, comentario=comentario)
+        db.session.add(nueva)
+        db.session.commit()
+
+        return "Opinión guardada 👍 <br><a href='/'>Volver</a>"
+
+    except Exception as e:
+        return f"Error: {str(e)}", 500
+
+
+# ----------------------
+# RUN
+# ----------------------
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=10000)
