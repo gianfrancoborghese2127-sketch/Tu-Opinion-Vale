@@ -1,143 +1,122 @@
-import os
 from flask import Flask, request, redirect, render_template_string
 from flask_sqlalchemy import SQLAlchemy
+import os
 
 app = Flask(__name__)
 
-# 🔥 ARREGLAR DATABASE_URL DE RENDER
-url = os.environ.get("DATABASE_URL")
-
-if url and url.startswith("postgres://"):
-    url = url.replace("postgres://", "postgresql://", 1)
-
-app.config["SQLALCHEMY_DATABASE_URI"] = url
-app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+# Config DB (Render)
+app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get("DATABASE_URL")
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
 
-# 📌 MODELO
+# Modelo
 class Opinion(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     nombre = db.Column(db.String(100))
     mensaje = db.Column(db.Text)
 
-# 🔥 CREAR TABLA AUTOMÁTICAMENTE
+# Crear tablas automáticamente
 with app.app_context():
     db.create_all()
 
-# 🎨 HTML USUARIO (centrado bonito)
-HTML_USER = """
-<!DOCTYPE html>
-<html>
-<head>
-<title>Tu Opinión Vale</title>
+# ----------- HTML BASE -----------
+ESTILO = """
 <style>
 body {
     font-family: Arial;
-    background: #f2f2f2;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    height: 100vh;
-}
-.container {
-    background: white;
-    padding: 30px;
-    border-radius: 10px;
-    width: 300px;
+    background: #f4f4f4;
     text-align: center;
 }
+.container {
+    margin-top: 50px;
+}
 input, textarea {
-    width: 100%;
-    margin: 10px 0;
+    width: 300px;
     padding: 10px;
+    margin: 5px;
 }
 button {
+    padding: 10px 20px;
     background: black;
     color: white;
-    padding: 10px;
     border: none;
-    width: 100%;
+}
+.opinion {
+    background: white;
+    margin: 10px auto;
+    padding: 10px;
+    width: 400px;
+    border-radius: 10px;
 }
 </style>
-</head>
-<body>
-<div class="container">
-<h2>Tu Opinión Vale</h2>
-<form method="POST">
-<input name="nombre" placeholder="Tu nombre" required>
-<textarea name="mensaje" placeholder="Tu opinión" required></textarea>
-<button>Enviar</button>
-</form>
-</div>
-</body>
-</html>
 """
 
-# 🔐 HTML LOGIN ADMIN
-HTML_LOGIN = """
-<!DOCTYPE html>
-<html>
-<head>
-<title>Admin</title>
-</head>
-<body style="text-align:center; margin-top:100px;">
-<h2>Acceso Admin</h2>
-<form method="POST">
-<input type="password" name="password" placeholder="Contraseña">
-<button>Entrar</button>
-</form>
-</body>
-</html>
-"""
+# ----------- PÁGINA USUARIO -----------
+@app.route("/")
+def index():
+    return render_template_string(ESTILO + """
+    <div class="container">
+        <h1>Deja tu opinión</h1>
+        <form action="/enviar" method="POST">
+            <input name="nombre" placeholder="Tu nombre" required><br>
+            <textarea name="mensaje" placeholder="Tu opinión" required></textarea><br>
+            <button type="submit">Enviar</button>
+        </form>
+    </div>
+    """)
 
-# 📊 HTML ADMIN
-HTML_ADMIN = """
-<!DOCTYPE html>
-<html>
-<head>
-<title>Admin</title>
-</head>
-<body style="font-family:Arial; text-align:center;">
-<h2>Opiniones</h2>
-<ul>
-{% for o in opiniones %}
-<li><b>{{o.nombre}}</b>: {{o.mensaje}}</li>
-{% endfor %}
-</ul>
-</body>
-</html>
-"""
+# Guardar opinión
+@app.route("/enviar", methods=["POST"])
+def enviar():
+    nombre = request.form["nombre"]
+    mensaje = request.form["mensaje"]
 
-# 🌐 RUTA PRINCIPAL (usuarios)
-@app.route("/", methods=["GET", "POST"])
-def home():
-    if request.method == "POST":
-        nombre = request.form["nombre"]
-        mensaje = request.form["mensaje"]
+    nueva = Opinion(nombre=nombre, mensaje=mensaje)
+    db.session.add(nueva)
+    db.session.commit()
 
-        nueva = Opinion(nombre=nombre, mensaje=mensaje)
-        db.session.add(nueva)
-        db.session.commit()
+    return redirect("/")
 
-        return redirect("/")
-
-    return render_template_string(HTML_USER)
-
-# 🔐 LOGIN ADMIN
+# ----------- LOGIN ADMIN -----------
 @app.route("/admin", methods=["GET", "POST"])
 def admin_login():
     if request.method == "POST":
-        if request.form["password"] == "Presidente2026GFB":
+        password = request.form["password"]
+        if password == "Presidente2026GFB":
             return redirect("/panel")
-    return render_template_string(HTML_LOGIN)
+        else:
+            return "Contraseña incorrecta"
 
-# 📊 PANEL ADMIN
+    return render_template_string(ESTILO + """
+    <div class="container">
+        <h2>Admin Login</h2>
+        <form method="POST">
+            <input type="password" name="password" placeholder="Contraseña">
+            <br>
+            <button>Entrar</button>
+        </form>
+    </div>
+    """)
+
+# ----------- PANEL ADMIN -----------
 @app.route("/panel")
 def panel():
     opiniones = Opinion.query.all()
-    return render_template_string(HTML_ADMIN, opiniones=opiniones)
 
-# 🚀 RUN
-if __name__ == "__main__":
-    app.run()
+    html = """
+    <div class="container">
+        <h1>Panel Admin</h1>
+    """
+
+    for o in opiniones:
+        html += f"""
+        <div class="opinion">
+            <b>{o.nombre}</b><br>
+            {o.mensaje}
+        </div>
+        """
+
+    html += "</div>"
+
+    return render_template_string(ESTILO + html)
